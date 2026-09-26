@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 include(GNUInstallDirs)
 
 # QSystemTrayIcon lives in QtWidgets and needs a QApplication
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Qml Quick DBus LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Qml Quick DBus Network LinguistTools)
 find_package(KF6WindowSystem REQUIRED)
 
 add_executable(lingmo-updater
@@ -20,7 +20,7 @@ add_executable(lingmo-updater
 )
 
 target_link_libraries(lingmo-updater PRIVATE
-    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Qml Qt6::Quick Qt6::DBus
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Qml Qt6::Quick Qt6::DBus Qt6::Network
     KF6::WindowSystem
 )
 

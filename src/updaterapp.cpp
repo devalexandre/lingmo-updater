@@ -28,6 +28,12 @@
 #include <QFontInfo>
 #include <QIcon>
 #include <QMenu>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QFile>
+#include <QRegularExpression>
+#include <QSysInfo>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -62,6 +68,33 @@ static QString fixedFontFamily()
     return font.family();
 }
 
+namespace {
+// Where pacman gets [archlingmo] from, per /etc/pacman.conf
+QString archlingmoDatabase()
+{
+    QFile conf(QStringLiteral("/etc/pacman.conf"));
+    if (!conf.open(QIODevice::ReadOnly))
+        return {};
+    bool inSection = false;
+    while (!conf.atEnd()) {
+        const QString line = QString::fromUtf8(conf.readLine()).trimmed();
+        if (line.startsWith(QLatin1Char('['))) {
+            inSection = line == QLatin1String("[archlingmo]");
+            continue;
+        }
+        static const QRegularExpression server(QStringLiteral("^Server\\s*=\\s*(\\S+)"));
+        const auto match = server.match(line);
+        if (inSection && match.hasMatch()) {
+            QString url = match.captured(1);
+            url.replace(QLatin1String("$arch"), QSysInfo::currentCpuArchitecture());
+            url.replace(QLatin1String("$repo"), QLatin1String("archlingmo"));
+            return url + QLatin1String("/archlingmo.db");
+        }
+    }
+    return {};
+}
+}
+
 UpdaterApp::UpdaterApp(bool resident, QObject *parent)
     : QObject(parent)
     , m_resident(resident)
@@ -87,16 +120,64 @@ UpdaterApp::UpdaterApp(bool resident, QObject *parent)
                                           this, SLOT(onNotificationAction(uint, QString)));
 
     if (m_resident) {
-        // First check shortly after login, then every 3 hours
+        // First check right after login, once the network is up, then every 3 hours
         bool ok = false;
         int delay = qEnvironmentVariableIntValue("LINGMO_UPDATER_DELAY", &ok);
         if (!ok)
-            delay = 120;
+            delay = 30;
         QTimer::singleShot(std::chrono::seconds(delay), m_manager, &UpdateManager::check);
         m_timer.setInterval(3h);
         connect(&m_timer, &QTimer::timeout, m_manager, &UpdateManager::check);
         m_timer.start();
+
+        // Lingmo updates show up within minutes of being published: the repository
+        // database is tiny to ask about, so it's watched much more often than the
+        // full check runs
+        m_repoDb = archlingmoDatabase();
+        if (!m_repoDb.isEmpty()) {
+            m_network = new QNetworkAccessManager(this);
+            m_repoTimer.setInterval(10min);
+            connect(&m_repoTimer, &QTimer::timeout, this, &UpdaterApp::pollRepo);
+            m_repoTimer.start();
+            pollRepo();
+        }
+
+        QDBusConnection::systemBus().connect(QStringLiteral("org.freedesktop.login1"),
+                                             QStringLiteral("/org/freedesktop/login1"),
+                                             QStringLiteral("org.freedesktop.login1.Manager"),
+                                             QStringLiteral("PrepareForSleep"),
+                                             this, SLOT(onPrepareForSleep(bool)));
     }
+}
+
+void UpdaterApp::onPrepareForSleep(bool sleeping)
+{
+    if (sleeping)
+        return;
+    // The network needs a moment to come back after resume
+    QTimer::singleShot(30s, m_manager, &UpdateManager::check);
+}
+
+void UpdaterApp::pollRepo()
+{
+    QNetworkRequest request{QUrl(m_repoDb)};
+    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    QNetworkReply *reply = m_network->head(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError)
+            return;
+        QByteArray stamp = reply->rawHeader("ETag");
+        if (stamp.isEmpty())
+            stamp = reply->rawHeader("Last-Modified");
+        if (stamp.isEmpty())
+            return;
+        // The first answer is only the baseline: login already runs a full check
+        const bool changed = !m_repoStamp.isEmpty() && stamp != m_repoStamp;
+        m_repoStamp = stamp;
+        if (changed)
+            m_manager->check();
+    });
 }
 
 UpdaterApp::~UpdaterApp()

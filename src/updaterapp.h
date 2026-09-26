@@ -24,6 +24,7 @@
 #include <QTimer>
 
 class QMenu;
+class QNetworkAccessManager;
 class QQmlApplicationEngine;
 class QQuickWindow;
 class QSystemTrayIcon;
@@ -46,6 +47,8 @@ public Q_SLOTS:
 
 private Q_SLOTS:
     void onNotificationAction(uint id, const QString &action);
+    // logind: back from suspend
+    void onPrepareForSleep(bool sleeping);
 
 private:
     void updateTray();
@@ -53,6 +56,8 @@ private:
     void onUpdateFinished(bool success);
     void notify(const QString &summary, const QString &body, bool withAction);
     bool windowVisible() const;
+    // Asks the [archlingmo] server whether its database changed since last time
+    void pollRepo();
     void maybeQuit();
 
     bool m_resident;
@@ -60,6 +65,10 @@ private:
     QSystemTrayIcon *m_tray;
     QMenu *m_menu;
     QTimer m_timer;
+    QTimer m_repoTimer;
+    QNetworkAccessManager *m_network = nullptr;
+    QString m_repoDb;       // URL of archlingmo.db
+    QByteArray m_repoStamp; // its ETag or Last-Modified when last seen
     QQmlApplicationEngine *m_engine = nullptr;
     QPointer<QQuickWindow> m_window;
     QString m_notifiedKey;
