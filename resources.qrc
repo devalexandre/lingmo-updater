@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/Main.qml</file>
+        <file>qml/ActionButton.qml</file>
+        <file>qml/PackageList.qml</file>
+        <file>qml/LogView.qml</file>
+        <file>fake/fake-pacman.sh</file>
+    </qresource>
+</RCC>

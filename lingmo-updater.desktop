@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Updates
+Name[pt_BR]=Atualizações
+GenericName=Software Updater
+GenericName[pt_BR]=Atualizador do sistema
+Comment=Keep the system up to date
+Comment[pt_BR]=Mantenha o sistema atualizado
+Exec=lingmo-updater
+Icon=system-software-update
+Terminal=false
+Categories=System;
+Keywords=update;upgrade;pacman;packages;
+Keywords[pt_BR]=atualizar;atualização;pacman;pacotes;
+StartupNotify=true

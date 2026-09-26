@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Update notifier
+Name[pt_BR]=Notificador de atualizações
+Comment=Checks for system updates in the background
+Comment[pt_BR]=Verifica atualizações do sistema em segundo plano
+Exec=lingmo-updater --background
+Icon=system-software-update
+OnlyShowIn=Lingmo;
+NoDisplay=true
+X-GNOME-Autostart-Delay=10
